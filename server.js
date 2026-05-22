@@ -10,82 +10,129 @@ const io = new Server(server);
 
 app.use(express.static('public'));
 
-let waitingPlayer = null;
+const rooms = {};
 
 io.on('connection', (socket) => {
 
-  console.log('Player connected:', socket.id);
+  console.log('Connected:', socket.id);
 
-  if (waitingPlayer) {
+  socket.on('createRoom', () => {
 
-    const room = waitingPlayer.id + '#' + socket.id;
+    const roomCode =
+      Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .toUpperCase();
 
-    socket.join(room);
-    waitingPlayer.join(room);
+    rooms[roomCode] = {
+      players: [socket.id],
+      moves: {}
+    };
 
-    io.to(room).emit('startGame', {
-      room
-    });
+    socket.join(roomCode);
 
-    waitingPlayer = null;
-  }
-  else {
-    waitingPlayer = socket;
-    socket.emit('waiting');
-  }
+    socket.emit('roomCreated', roomCode);
 
-  socket.on('move', ({ room, move }) => {
+    console.log('Room created:', roomCode);
+  });
 
-    const game = io.sockets.adapter.rooms.get(room);
+  socket.on('joinRoom', (roomCode) => {
 
-    if (!game.moves)
-      game.moves = {};
+    roomCode = roomCode.toUpperCase();
 
-    game.moves[socket.id] = move;
+    const room = rooms[roomCode];
 
-    if (Object.keys(game.moves).length === 2) {
+    if (!room) {
+      socket.emit('errorMessage',
+        'Room does not exist');
+      return;
+    }
+
+    if (room.players.length >= 2) {
+      socket.emit('errorMessage',
+        'Room is full');
+      return;
+    }
+
+    room.players.push(socket.id);
+
+    socket.join(roomCode);
+
+    io.to(roomCode).emit('startGame', roomCode);
+
+    console.log(socket.id,
+      'joined',
+      roomCode);
+  });
+
+  socket.on('move', ({ roomCode, move }) => {
+
+    const room = rooms[roomCode];
+
+    if (!room)
+      return;
+
+    room.moves[socket.id] = move;
+
+    if (Object.keys(room.moves).length === 2) {
 
       const players =
-        Object.keys(game.moves);
+        room.players;
 
       const move1 =
-        game.moves[players[0]];
+        room.moves[players[0]];
 
       const move2 =
-        game.moves[players[1]];
+        room.moves[players[1]];
 
       let result = '';
 
       if (move1 === move2)
         result = 'Tie';
       else if (
-        (move1 === 'rock' && move2 === 'scissors') ||
-        (move1 === 'paper' && move2 === 'rock') ||
-        (move1 === 'scissors' && move2 === 'paper')
+        (move1 === 'rock' &&
+          move2 === 'scissors') ||
+        (move1 === 'paper' &&
+          move2 === 'rock') ||
+        (move1 === 'scissors' &&
+          move2 === 'paper')
       )
         result = 'Player 1 wins';
       else
         result = 'Player 2 wins';
 
-      io.to(room).emit('result', {
+      io.to(roomCode).emit('result', {
         move1,
         move2,
         result
       });
 
-      game.moves = {};
+      room.moves = {};
     }
   });
 
   socket.on('disconnect', () => {
 
-    if (waitingPlayer === socket)
-      waitingPlayer = null;
+    for (const roomCode in rooms) {
 
-    console.log('Disconnected');
+      const room = rooms[roomCode];
+
+      room.players =
+        room.players.filter(
+          id => id !== socket.id
+        );
+
+      delete room.moves[socket.id];
+
+      if (room.players.length === 0) {
+        delete rooms[roomCode];
+      }
+    }
+
+    console.log('Disconnected:', socket.id);
   });
 });
 
 server.listen(3000, () => {
-  console.log('Server running on port 3000');
+  console.log('Server running on 3000');
 });

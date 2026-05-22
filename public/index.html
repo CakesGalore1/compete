@@ -1,33 +1,59 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Multiplayer RPS</title>
+  <title>Private Room RPS</title>
 
   <style>
+
     body {
-      text-align: center;
       font-family: Arial;
+      text-align: center;
       padding-top: 50px;
     }
 
     button {
       padding: 15px 25px;
       margin: 10px;
-      font-size: 20px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    input {
+      padding: 10px;
+      font-size: 18px;
     }
 
     #status {
-      margin-top: 20px;
+      margin-top: 25px;
       font-size: 24px;
     }
+
   </style>
 </head>
 
 <body>
 
-  <h1>Online Rock Paper Scissors</h1>
+  <h1>Private Room RPS</h1>
 
-  <div id="status">Connecting...</div>
+  <button onclick="createRoom()">
+    Create Room
+  </button>
+
+  <br><br>
+
+  <input
+    id="roomInput"
+    placeholder="Enter Room Code">
+
+  <button onclick="joinRoom()">
+    Join Room
+  </button>
+
+  <div id="roomCode"></div>
+
+  <div id="status"></div>
+
+  <br>
 
   <button onclick="sendMove('rock')">
     Rock
@@ -49,31 +75,20 @@
 
     let currentRoom = null;
 
-    socket.on('waiting', () => {
-      document.getElementById('status')
-        .innerText =
-        'Waiting for opponent...';
-    });
+    function createRoom() {
 
-    socket.on('startGame', ({ room }) => {
+      socket.emit('createRoom');
+    }
 
-      currentRoom = room;
+    function joinRoom() {
 
-      document.getElementById('status')
-        .innerText =
-        'Opponent found!';
-    });
+      const roomCode =
+        document
+          .getElementById('roomInput')
+          .value;
 
-    socket.on('result', (data) => {
-
-      document.getElementById('status')
-        .innerHTML =
-        `
-        Player 1: ${data.move1}<br>
-        Player 2: ${data.move2}<br><br>
-        ${data.result}
-        `;
-    });
+      socket.emit('joinRoom', roomCode);
+    }
 
     function sendMove(move) {
 
@@ -81,14 +96,68 @@
         return;
 
       socket.emit('move', {
-        room: currentRoom,
+        roomCode: currentRoom,
         move
       });
 
-      document.getElementById('status')
+      document
+        .getElementById('status')
         .innerText =
-        'Move submitted...';
+        'Move submitted';
     }
+
+    socket.on('roomCreated',
+      (roomCode) => {
+
+      currentRoom = roomCode;
+
+      document
+        .getElementById('roomCode')
+        .innerHTML =
+        `
+        Room Code:
+        <b>${roomCode}</b>
+        `;
+
+      document
+        .getElementById('status')
+        .innerText =
+        'Waiting for opponent...';
+    });
+
+    socket.on('startGame',
+      (roomCode) => {
+
+      currentRoom = roomCode;
+
+      document
+        .getElementById('status')
+        .innerText =
+        'Game started!';
+    });
+
+    socket.on('result',
+      (data) => {
+
+      document
+        .getElementById('status')
+        .innerHTML =
+        `
+        Player 1:
+        ${data.move1}<br>
+
+        Player 2:
+        ${data.move2}<br><br>
+
+        ${data.result}
+        `;
+    });
+
+    socket.on('errorMessage',
+      (msg) => {
+
+      alert(msg);
+    });
 
   </script>
 
