@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Multiplayer RPS</title>
+
+  <style>
+    body {
+      text-align: center;
+      font-family: Arial;
+      padding-top: 50px;
+    }
+
+    button {
+      padding: 15px 25px;
+      margin: 10px;
+      font-size: 20px;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-size: 24px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Online Rock Paper Scissors</h1>
+
+  <div id="status">Connecting...</div>
+
+  <button onclick="sendMove('rock')">
+    Rock
+  </button>
+
+  <button onclick="sendMove('paper')">
+    Paper
+  </button>
+
+  <button onclick="sendMove('scissors')">
+    Scissors
+  </button>
+
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+
+    const socket = io();
+
+    let currentRoom = null;
+
+    socket.on('waiting', () => {
+      document.getElementById('status')
+        .innerText =
+        'Waiting for opponent...';
+    });
+
+    socket.on('startGame', ({ room }) => {
+
+      currentRoom = room;
+
+      document.getElementById('status')
+        .innerText =
+        'Opponent found!';
+    });
+
+    socket.on('result', (data) => {
+
+      document.getElementById('status')
+        .innerHTML =
+        `
+        Player 1: ${data.move1}<br>
+        Player 2: ${data.move2}<br><br>
+        ${data.result}
+        `;
+    });
+
+    function sendMove(move) {
+
+      if (!currentRoom)
+        return;
+
+      socket.emit('move', {
+        room: currentRoom,
+        move
+      });
+
+      document.getElementById('status')
+        .innerText =
+        'Move submitted...';
+    }
+
+  </script>
+
+</body>
+</html>
